@@ -111,7 +111,7 @@ Data exchange uses:
 
 ---
 
-## 📊 Data Flow Diagram
+## Data Flow Diagram
 
 ![Base Node Flowchart](mycode/flowcharts/Basenodeflowchart.png)
 
