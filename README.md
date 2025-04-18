@@ -199,10 +199,15 @@ Navigate to your project directory (where CMakeLists.txt is located).
 Build for the ESP32 DevKitM C3:
 
 ``` bash
-west build -b esp32c3_devkitm --pristine
+ west build -b  esp32c3_devkitm  /Users/abhinavsingh/csse4011/repo/practical3/dt --pristine
 ```
 Flash the firmware:
 
 ```bash
 west flash
+```
+Serial Monitoring: 
+
+```bash
+ls /dev/cu.*
 ```
