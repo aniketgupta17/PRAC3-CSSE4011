@@ -6,7 +6,7 @@ This repository contains the implementation for **Practical 3** of **CSSE4011 - 
 ## Base Node Functionality
 
 ### 🔧 Platform
-- **ESP32-DevKitC-3**
+- **ESP32-C3-DevKitM**
 - **Zephyr OS**
 
 ---
