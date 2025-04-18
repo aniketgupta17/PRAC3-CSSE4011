@@ -137,26 +137,26 @@ This guide provides steps to set up the Zephyr RTOS development environment for 
      
 2. Install the required toolchain:
    ```bash
-     cd zephyr-sdk-0.17.0
-     ./setup.sh -t riscv64-zephyr-elf -h -c
-     ls riscv64-zephyr-elf/bin/
+   cd zephyr-sdk-0.17.0
+   ./setup.sh -t riscv64-zephyr-elf -h -c
+   ls riscv64-zephyr-elf/bin/
      ```
 
 3. Verify installation:
  ```bash
-    ls riscv64-zephyr-elf/bin/
+ ls riscv64-zephyr-elf/bin/
    ```
 
 ## 2. Set Environment Variables
 Add the following to your shell config (~/.zshrc, ~/.bashrc, etc.):
 
 ```bash
-    export ZEPHYR_SDK_INSTALL_DIR=~/zephyr_install/zephyr-sdk-0.17.0
+export ZEPHYR_SDK_INSTALL_DIR=~/zephyr_install/zephyr-sdk-0.17.0
 ```
 Then source the file to load the environment variable:
 
 ```bash
-  source ~/.zshrc  # or ~/.bashrc
+source ~/.zshrc  # or ~/.bashrc
 ```
 
 ## 3. Use Zephyr v3.2.0 (Recommended for ESP32 DevKitM C3)
@@ -165,7 +165,7 @@ Due to compatibility issues, it's recommended to use Zephyr v3.2.0.
 Go to your project directory and clean any existing workspace:
 
 ``` bash
-  rm -rf .west zephyr
+rm -rf .west zephyr
 ```
 
 Initialize the workspace:
@@ -181,7 +181,7 @@ Verify the version:
 
 
 ```bash
-  cat west.yml | grep revision
+cat west.yml | grep revision
 ```
 ## 4. Sample CMakeLists.txt
 Ensure your CMakeLists.txt file (in project root) contains:
@@ -199,10 +199,10 @@ Navigate to your project directory (where CMakeLists.txt is located).
 Build for the ESP32 DevKitM C3:
 
 ``` bash
-    west build -b esp32c3_devkitm --pristine
+west build -b esp32c3_devkitm --pristine
 ```
 Flash the firmware:
 
 ```bash
-  west flash
+west flash
 ```
