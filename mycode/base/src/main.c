@@ -5,11 +5,13 @@
  */
 
 #include <stdint.h>
-
-extern uint32_t central_gatt_write(uint32_t count);
+#include "ibeacon_node_manager.h"
+// extern uint32_t central_gatt_write(uint32_t count);
 
 int main(void)
 {
+	ibeacon_node_manager_init();
 	(void)central_gatt_write(0U);
+	printk("THis shit is done");
 	return 0;
 }
