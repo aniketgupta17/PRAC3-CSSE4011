@@ -15,17 +15,16 @@
      0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11,
      0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11
  );
- static struct bt_uuid_16 char_uuid = BT_UUID_INIT_16(0x2A10);
- static struct bt_uuid_16 uuid = BT_UUID_INIT_16(0x2A10); // In read_cmd
+ static struct bt_uuid_16 char_uuid = BT_UUID_INIT_16(1849);
+ static struct bt_uuid_16 uuid = BT_UUID_INIT_16(1849); // In read_cmd // Appearance (fallback)
  
  static struct bt_gatt_discover_params discover_params;
  static struct bt_gatt_read_params read_params;
  static uint16_t char_handle = 0;
  static uint16_t service_end_handle = 0xffff; // Track service end handle
- static bool security_established = false; // Track security state
  
  extern int mtu_exchange(struct bt_conn *conn);
- extern int write_cmd(struct bt_conn *conn);
+//  extern int write_cmd(struct bt_conn *conn);
  extern struct bt_conn *conn_connected;
  extern uint32_t last_write_rate;
  extern void (*start_scan_func)(void);
@@ -48,14 +47,17 @@
  {
      struct bt_uuid *target_uuid = (struct bt_uuid *)user_data;
  
+     /* Log each AD structure */
      printk("AD type 0x%02x, len %u: ", data->type, data->data_len);
      for (size_t i = 0; i < data->data_len; i++) {
          printk("%02x ", data->data[i]);
      }
      printk("\n");
  
+     /* Check for 128-bit UUIDs (complete or incomplete list) */
      if (data->type == BT_DATA_UUID128_SOME || data->type == BT_DATA_UUID128_ALL) {
          printk("Found 128-bit UUID list (type 0x%02x, len %u): ", data->type, data->data_len);
+         /* Each UUID in the data is 16 bytes (128-bit UUID) */
          for (size_t i = 0; i < data->data_len; i += 16) {
              struct bt_uuid_128 uuid;
              memcpy(uuid.val, &data->data[i], 16);
@@ -81,30 +83,30 @@
  }
  
  static uint8_t read_cb(struct bt_conn *conn, uint8_t err,
-                        struct bt_gatt_read_params *params,
-                        const void *data, uint16_t length)
- {
-     printk("read_cb: err %d, length %u\n", err, length);
-     if (err) {
-         printk("Read failed (err %d)\n", err);
-     } else if (data) {
-         printk("Read %d bytes: ", length);
-         for (int i = 0; i < length; i++) {
-             printk("%02x ", ((const uint8_t *)data)[i]);
-         }
-         printk("\n");
-     } else {
-         printk("Read complete (no data)\n");
-     }
- 
-     return BT_GATT_ITER_STOP;
- }
+    struct bt_gatt_read_params *params,
+    const void *data, uint16_t length)
+{
+printk("✅ read_cb() triggered. err=%d, len=%d\n", err, length);
+if (err) {
+printk("Read failed (err %d)\n", err);
+} else if (data) {
+printk("Read %d bytes: ", length);
+for (int i = 0; i < length; i++) {
+printk("%02x ", ((const uint8_t *)data)[i]);
+}
+printk("\n");
+} else {
+printk("Read complete (no more data)\n");
+}
+
+return BT_GATT_ITER_STOP;
+}
+
  
  static uint8_t characteristic_discover_func(struct bt_conn *conn,
                                             const struct bt_gatt_attr *attr,
                                             struct bt_gatt_discover_params *params)
  {
-     printk("characteristic_discover_func: attr %p\n", attr);
      if (!attr) {
          printk("Characteristic discovery complete, no characteristic found for UUID 0x%04x\n", char_uuid.val);
          bt_conn_disconnect(conn, BT_HCI_ERR_REMOTE_USER_TERM_CONN);
@@ -128,10 +130,9 @@
      int err = bt_gatt_read(conn, &read_params);
      if (err) {
          printk("Read failed (err %d)\n", err);
-     } else {
-         printk("Read initiated for handle %u\n", char_handle);
      }
- 
+     printk("✅ Discovery and reading process completed successfully.\n");
+
      return BT_GATT_ITER_STOP;
  }
  
@@ -139,7 +140,6 @@
                                      const struct bt_gatt_attr *attr,
                                      struct bt_gatt_discover_params *params)
  {
-     printk("service_discover_func: attr %p\n", attr);
      if (!attr) {
          printk("Service discovery complete, no service found\n");
          bt_conn_disconnect(conn, BT_HCI_ERR_REMOTE_USER_TERM_CONN);
@@ -175,8 +175,6 @@
      if (err) {
          printk("Characteristic discovery failed (err %d)\n", err);
          bt_conn_disconnect(conn, BT_HCI_ERR_REMOTE_USER_TERM_CONN);
-     } else {
-         printk("Characteristic discovery initiated\n");
      }
  
      return BT_GATT_ITER_STOP;
@@ -184,7 +182,6 @@
  
  int discover_and_read(struct bt_conn *conn)
  {
-     printk("discover_and_read: Starting service discovery\n");
      memset(&discover_params, 0, sizeof(discover_params));
  
      discover_params.uuid = &service_uuid.uuid;
@@ -197,8 +194,6 @@
      if (err) {
          printk("Service discovery failed (err %d)\n", err);
          bt_conn_disconnect(conn, BT_HCI_ERR_REMOTE_USER_TERM_CONN);
-     } else {
-         printk("Service discovery initiated\n");
      }
  
      return err;
@@ -206,9 +201,8 @@
  
  int read_cmd(struct bt_conn *conn)
  {
-     printk("read_cmd: Starting read by UUID\n");
      static struct bt_gatt_read_params read_params;
-     static struct bt_uuid_16 uuid = BT_UUID_INIT_16(0x2A10);
+     static struct bt_uuid_16 uuid = BT_UUID_INIT_16(1849); // Match char_uuid
  
      memset(&read_params, 0, sizeof(read_params));
  
@@ -220,8 +214,6 @@
      int err = bt_gatt_read(conn, &read_params);
      if (err) {
          printk("bt_gatt_read failed (err %d)\n", err);
-     } else {
-         printk("bt_gatt_read initiated\n");
      }
  
      return err;
@@ -233,24 +225,38 @@
      char dev[BT_ADDR_LE_STR_LEN];
      struct bt_conn *conn;
      int err;
- 
+     if (!is_ibeacon_node(NULL, addr)) {
+        printk("Device %s not in iBeacon list, ignoring\n", dev);
+        return;
+    }
      bt_addr_le_to_str(addr, dev, sizeof(dev));
      printk("[DEVICE]: %s, AD evt type %u, AD data len %u, RSSI %i\n",
             dev, type, ad->len, rssi);
  
+     /* Log raw advertising data */
      log_ad_data(ad);
  
+     /* Parse advertising data or scan response to log UUIDs */
      uuid_found_flag = false;
      bt_data_parse(ad, ad_data_cb, &service_uuid);
  
+     /* Log whether it’s connectable */
      if (type != BT_GAP_ADV_TYPE_ADV_IND && type != BT_GAP_ADV_TYPE_ADV_DIRECT_IND) {
          printk("Non-connectable advertisement (type %u)\n", type);
+         /* For debugging, proceed with scan responses to check UUID */
          if (type == BT_GAP_ADV_TYPE_SCAN_RSP && uuid_found_flag) {
              printk("Scan response contains target UUID, but not connectable\n");
          }
          return;
      }
  
+     /* Filter by RSSI (disabled for debugging) */
+     // if (rssi < -90) {
+     //     printk("RSSI too low (%i < -90)\n", rssi);
+     //     return;
+     // }
+ 
+     /* Check if the target UUID was found */
      if (!uuid_found_flag) {
          printk("Service UUID 11111111-1111-1111-1111-111111111111 not found in advertisement\n");
          return;
@@ -258,12 +264,14 @@
  
      printk("Found device advertising service UUID 11111111-1111-1111-1111-111111111111\n");
  
+     /* Stop scanning */
      err = bt_le_scan_stop();
      if (err) {
          printk("%s: Stop LE scan failed (err %d)\n", __func__, err);
          return;
      }
  
+     /* Connection parameters */
      static const struct bt_le_conn_param conn_params = {
          .interval_min = BT_GAP_INIT_CONN_INT_MIN,
          .interval_max = BT_GAP_INIT_CONN_INT_MAX,
@@ -271,12 +279,13 @@
          .timeout = 3000, /* 30 seconds */
      };
  
+     /* Attempt to connect */
      err = bt_conn_le_create(addr, BT_CONN_LE_CREATE_CONN, &conn_params, &conn);
      if (err) {
          printk("%s: Create conn failed (err %d)\n", __func__, err);
          start_scan_func();
      } else {
-         bt_conn_unref(conn);
+        //  bt_conn_unref(conn);
      }
  }
  
@@ -284,12 +293,13 @@
  {
      int err;
  
+     /* Custom scan parameters for better detection */
      static const struct bt_le_scan_param scan_param = {
-         .type = BT_LE_SCAN_TYPE_ACTIVE,
+         .type = BT_LE_SCAN_TYPE_ACTIVE, /* Active scanning */
          .options = BT_LE_SCAN_OPT_NONE,
-         .interval = BT_GAP_SCAN_FAST_INTERVAL,
-         .window = BT_GAP_SCAN_FAST_WINDOW,
-         .timeout = 0,
+         .interval = BT_GAP_SCAN_FAST_INTERVAL, /* 0x0040 (40 ms) */
+         .window = BT_GAP_SCAN_FAST_WINDOW,     /* 0x0030 (30 ms) */
+         .timeout = 0, /* No timeout */
      };
  
      err = bt_le_scan_start(&scan_param, device_found);
@@ -315,6 +325,7 @@
  static struct bt_conn_auth_cb auth_cb = {
      .cancel = auth_cancel,
      .pairing_confirm = pairing_confirm,
+     /* Removed passkey_entry and passkey_display */
  };
  
  static void connected(struct bt_conn *conn, uint8_t err)
@@ -333,12 +344,10 @@
          } else {
              printk("Connected to %s, role %d\n", addr, info.role);
              conn_connected = conn;
-             security_established = false; // Reset security flag
-             err = bt_conn_set_security(conn, BT_SECURITY_L2);
+             /* Try BT_SECURITY_NONE for testing */
+             err = bt_conn_set_security(conn,    BT_SECURITY_L0);
              if (err) {
                  printk("Failed to set security (err %d)\n", err);
-             } else {
-                 printk("Security set to L2\n");
              }
          }
      }
@@ -350,7 +359,6 @@
      bt_addr_le_to_str(bt_conn_get_dst(conn), addr, sizeof(addr));
      printk("Disconnected from %s (reason 0x%02x)\n", addr, reason);
      conn_connected = NULL;
-     security_established = false;
      service_end_handle = 0xffff;
      start_scan_func();
  }
@@ -361,15 +369,6 @@
      bt_addr_le_to_str(bt_conn_get_dst(conn), addr, sizeof(addr));
      if (!err) {
          printk("Security changed for %s: level %u\n", addr, level);
-         security_established = true;
-         /* Initiate discovery after security is established */
-         if (conn == conn_connected) {
-             int err = discover_and_read(conn);
-             if (err) {
-                 printk("Failed to start discovery after security (err %d)\n", err);
-                 bt_conn_disconnect(conn, BT_HCI_ERR_REMOTE_USER_TERM_CONN);
-             }
-         }
      } else {
          printk("Security failed for %s: level %u, err %u\n", addr, level, err);
      }
@@ -393,7 +392,7 @@
  uint32_t central_gatt_write(uint32_t count)
  {
      int err;
- 
+ count=1;
      err = bt_enable(NULL);
      if (err) {
          printk("Bluetooth init failed (err %d)\n", err);
@@ -417,30 +416,31 @@
  
          if (conn_connected) {
              conn = bt_conn_ref(conn_connected);
-             printk("Main loop: conn_connected %p\n", conn);
-         } else {
-             printk("Main loop: No connection\n");
          }
  
-         if (conn && security_established) {
-             printk("Main loop: Security established, skipping discovery (handled in security_changed)\n");
-             bt_conn_unref(conn);
-         } else if (conn) {
-             printk("Main loop: Waiting for security\n");
-             bt_conn_unref(conn);
-         } else {
-             k_sleep(K_SECONDS(2));
-         }
- 
-         if (count) {
-             count--;
-             if (!count) {
-                 printk("Main loop: Count reached zero, exiting\n");
+         if (conn) {
+             err = discover_and_read(conn);
+             if (err) {
+                 printk("Discovery failed (err %d)\n", err);
+                 bt_conn_disconnect(conn, BT_HCI_ERR_REMOTE_USER_TERM_CONN);
+                 bt_conn_unref(conn);
                  break;
              }
+ 
+             bt_conn_unref(conn);
+             count =1;
+             if (count) {
+                 count--;
+                 if (!count) {
+                     break;
+                 }
+             }
+ 
+             k_yield();
+         } else {
+             k_sleep(K_SECONDS(1));
          }
      }
- 
-     printk("Main loop: Exited\n");
+  printk("Executed");
      return last_write_rate;
  }
