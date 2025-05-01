@@ -4,97 +4,125 @@
 #include <zephyr/bluetooth/hci.h>
 #include <zephyr/sys/util.h>
 #include <string.h>
-#include <SEGGER_RTT.h>
-#include <stdio.h> // for fflush
 
-#define NAME_LEN 30
+#define COMPANY_ID_LSB 0xFF
+#define COMPANY_ID_MSB 0xFF
+#define BT_ADDR_LE_STR_LEN 18
 
 struct beacon_info {
-    const char *name;
-    const char *addr_str;
-    uint16_t major;
-    uint16_t minor;
-    uint8_t x;
-    uint8_t y;
+    const char *name;       /* e.g. "4011-A" */
+    const char *addr_str;   /* MAC string */
+    uint16_t    major, minor;
+    uint8_t     x, y;
 };
 
 static const struct beacon_info beacons[] = {
-    {"4011-A", "F5:75:FE:85:34:67", 275, 329, 0, 0},
+    {"4011-A", "F5:75:FE:85:34:67", 2753, 32998, 0, 0},
     {"4011-B", "E5:73:87:06:1E:86", 32975, 20959, 2, 0},
     {"4011-C", "CA:99:9E:FD:98:B1", 26679, 40363, 4, 0},
     {"4011-D", "CB:1B:89:82:FF:FE", 41747, 38800, 4, 2},
     {"4011-E", "D4:D2:A0:A4:5C:AC", 30679, 51963, 4, 4},
-    {"4011-F", "C1:13:27:E9:B7:7C", 6195, 18394, 2, 4},
+    {"4011-F", "C1:13:27:E9:B7:7C", 6195,  18394, 2, 4},
     {"4011-G", "F1:04:48:06:39:A0", 30525, 30544, 0, 4},
     {"4011-H", "CA:0C:E0:DB:CE:60", 57395, 28931, 0, 2},
-    {"Test iPhone Beacon", "5A:72:2D:86:D5:AA", 275, 329, 88, 88}
 };
 
-static const struct beacon_info *find_beacon(const char *addr_str, uint16_t major, uint16_t minor)
+/* Lookup beacon by address+major+minor */
+static const struct beacon_info *
+find_beacon(const char *addr_str, uint16_t major, uint16_t minor)
 {
-    char cleaned_addr[BT_ADDR_LE_STR_LEN];
-    strncpy(cleaned_addr, addr_str, sizeof(cleaned_addr));
-    cleaned_addr[sizeof(cleaned_addr) - 1] = '\0';
+    char cleaned[BT_ADDR_LE_STR_LEN];
+    strncpy(cleaned, addr_str, sizeof(cleaned));
+    cleaned[sizeof(cleaned)-1] = '\0';
+    // if (char *p = strchr(cleaned, ' ')) { *p = '\0'; }
 
-    char *paren = strchr(cleaned_addr, ' ');
-    if (paren) {
-        *paren = '\0'; 
-    }
-    printk("Cleaned Addr: %s\n", cleaned_addr);
-
-    for (int i = 0; i < ARRAY_SIZE(beacons); i++) {
-        if (strcasecmp(cleaned_addr, beacons[i].addr_str) == 0 &&
-            beacons[i].major == major &&
-            beacons[i].minor == minor) {
+    for (size_t i = 0; i < ARRAY_SIZE(beacons); i++) {
+        if (strcasecmp(cleaned, beacons[i].addr_str) == 0
+            && beacons[i].major == major
+            && beacons[i].minor == minor) {
             return &beacons[i];
-            
         }
     }
     return NULL;
 }
 
-
-
-static void scan_recv(const struct bt_le_scan_recv_info *info,
-                      struct net_buf_simple *buf)
+/* Broadcast RSSI + ID (4 bytes total) */
+static void send_broadcast(int8_t rssi, char sender_id)
 {
-    printk("scan_recv() called, buf->len = %d\n", buf->len);
-    fflush(stdout);
+    uint8_t mfg_data[4] = {
+        COMPANY_ID_LSB,
+        COMPANY_ID_MSB,
+        (uint8_t)rssi,
+        (uint8_t)sender_id
+    };
 
-    if (buf->len < 30) {
+    printk(">> Advertise MfgData: %02X %02X %02X '%c' "
+           "(RSSI=%d, ID=%c)\n",
+           mfg_data[0], mfg_data[1],
+           mfg_data[2], sender_id,
+           rssi, sender_id);
+
+    const struct bt_data ad[] = {
+        BT_DATA(BT_DATA_MANUFACTURER_DATA,
+                mfg_data, sizeof(mfg_data)),
+    };
+
+    int err = bt_le_adv_start(BT_LE_ADV_NCONN,
+                              ad, ARRAY_SIZE(ad),
+                              NULL, 0);
+    if (err) {
+        printk("!! adv_start err %d\n", err);
         return;
     }
 
-    const uint8_t *data = buf->data;
+    k_msleep(1000);
 
-    // Print raw first bytes
-    printk("AD header: %02X %02X %02X %02X %02X %02X\n", data[0], data[1], data[2], data[3], data[4], data[5]);
+    err = bt_le_adv_stop();
+    if (err) {
+        printk("!! adv_stop err %d\n", err);
+    } else {
+        printk(">> Advertising stopped\n");
+    }
+}
 
-    if (data[5] == 0x4C && data[6] == 0x00 &&
-        data[7] == 0x02 && data[8] == 0x15) {
+/* Called for every packet while scanning */
+static void scan_recv(const struct bt_le_scan_recv_info *info,
+                      struct net_buf_simple *buf)
+{
+    printk(">> scan_recv(): len=%u, RSSI=%d\n", buf->len, info->rssi);
+
+    /* Dump first bytes for debug */
+    if (buf->len >= 16) {
+        printk("   data[0..15]= ");
+        for (int i = 0; i < 16; i++) {
+            printk("%02X ", buf->data[i]);
+        }
+        printk("\n");
+    }
+
+    /* iBeacon prefix at bytes 5–8: 4C 00 02 15 */
+    if (buf->len >= 30 &&
+        buf->data[5] == 0x4C &&
+        buf->data[6] == 0x00 &&
+        buf->data[7] == 0x02 &&
+        buf->data[8] == 0x15) {
 
         char le_addr[BT_ADDR_LE_STR_LEN];
         bt_addr_le_to_str(info->addr, le_addr, sizeof(le_addr));
 
-        uint16_t major = (data[25] << 8) | data[26];
-        uint16_t minor = (data[27] << 8) | data[28];
-        int8_t tx_power = (int8_t)data[29];
+        uint16_t major = (buf->data[25] << 8) | buf->data[26];
+        uint16_t minor = (buf->data[27] << 8) | buf->data[28];
 
-        printk("iBeacon detected - Addr: %s, Major: %u, Minor: %u, RSSI: %d, TxPower: %d\n",
-               le_addr, major, minor, info->rssi, tx_power);
-        const struct beacon_info *beacon = find_beacon(le_addr, major, minor);
+        const struct beacon_info *b =
+            find_beacon(le_addr, major, minor);
+        if (b) {
+            char id = b->name[strlen(b->name)-1];
+            printk(">> iBeacon match: %s ID='%c'\n",
+                   b->name, id);
 
-        if (beacon) {
-            printk("Match: %s at [%d,%d] (RSSI %d)\n",
-                   beacon->name, beacon->x, beacon->y, info->rssi);
-        } else {
-            printk("Unknown beacon: %s (Major %u / Minor %u)\n", le_addr, major, minor);
+            send_broadcast(info->rssi, id);
         }
-    } else {
-        printk("Not an iBeacon packet\n");
     }
-
-    fflush(stdout);
 }
 
 static struct bt_le_scan_cb scan_callbacks = {
@@ -105,37 +133,31 @@ void main(void)
 {
     int err;
 
-    printk("Starting iBeacon Scanner\n");
-    fflush(stdout);
+    printk("Starting iBeacon Scanner & Broadcaster\n");
 
     err = bt_enable(NULL);
     if (err) {
-        printk("bt_enable() failed (err %d)\n", err);
+        printk("!! bt_enable err %d\n", err);
         return;
     }
-
     printk("Bluetooth initialized\n");
 
     bt_le_scan_cb_register(&scan_callbacks);
 
     struct bt_le_scan_param scan_param = {
-        .type       = BT_LE_SCAN_TYPE_PASSIVE,
-        .options    = BT_LE_SCAN_OPT_FILTER_DUPLICATE,
-        .interval   = BT_GAP_SCAN_FAST_INTERVAL,
-        .window     = BT_GAP_SCAN_FAST_WINDOW,
+        .type     = BT_LE_SCAN_TYPE_PASSIVE,
+        .options  = BT_LE_SCAN_OPT_FILTER_DUPLICATE,
+        .interval = BT_GAP_SCAN_FAST_INTERVAL,
+        .window   = BT_GAP_SCAN_FAST_WINDOW,
     };
-
     err = bt_le_scan_start(&scan_param, NULL);
     if (err) {
-        printk("Scan start failed (err %d)\n", err);
+        printk("!! bt_le_scan_start err %d\n", err);
         return;
     }
-
     printk("Scanning started\n");
 
-    int counter = 0;
     while (1) {
-        fflush(stdout);
-        k_sleep(K_MSEC(2000));
+        k_sleep(K_SECONDS(2));
     }
 }
