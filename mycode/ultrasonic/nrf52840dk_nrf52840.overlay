@@ -1,0 +1,20 @@
+/*
+ * Overlay for Ultrasonic sensor HC-SR04 on nRF52840 DK
+ */
+/ {
+    ultrasonic_sensor {
+        compatible = "gpio-keys";
+        trigger_gpio: trigger_pin {
+            label = "TRIGGER";
+            gpios = <&gpio0 13 GPIO_ACTIVE_HIGH>; /* P0.13 */
+        };
+        echo_gpio: echo_pin {
+            label = "ECHO";
+            gpios = <&gpio0 11 GPIO_ACTIVE_HIGH>; /* P0.11 */
+        };
+    };
+    aliases {
+        trigger = &trigger_gpio;
+        echo = &echo_gpio;
+    };
+};
