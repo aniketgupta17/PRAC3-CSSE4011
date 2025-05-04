@@ -1,0 +1,23 @@
+services:
+  influxdb:
+    image: influxdb:2.7
+    container_name: prac3_influx
+    ports: ["8086:8086"]
+    volumes: ["./vol/influxdb2:/var/lib/influxdb2"]
+    environment:
+      - DOCKER_INFLUXDB_INIT_MODE=setup
+      - DOCKER_INFLUXDB_INIT_USERNAME=admin
+      - DOCKER_INFLUXDB_INIT_PASSWORD=admin123
+      - DOCKER_INFLUXDB_INIT_ORG=uq
+      - DOCKER_INFLUXDB_INIT_BUCKET=prac3
+      - DOCKER_INFLUXDB_INIT_RETENTION=30d
+      - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=supertoken
+
+  grafana:
+    image: grafana/grafana:10.4.2
+    container_name: prac3_grafana
+    ports: ["3000:3000"]
+    volumes: ["./vol/grafana:/var/lib/grafana"]
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    depends_on: [influxdb]

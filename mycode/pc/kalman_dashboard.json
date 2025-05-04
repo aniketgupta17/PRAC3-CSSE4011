@@ -1,0 +1,168 @@
+{
+  "uid": "prac3-loc",
+  "title": "Prac 3 Localisation",
+  "schemaVersion": 37,
+  "time": { "from": "now-15m", "to": "now" },
+  "refresh": "5s",
+  "panels": [
+    {
+      "type": "geomap",
+      "title": "Position (x,y)",
+      "datasource": "InfluxDB",
+      "gridPos": { "h": 12, "w": 12, "x": 0, "y": 0 },
+      "options": {
+        "showLayerControls": false,
+        "view": { "id": "blank", "center": { "lat": 1.5, "lon": 2.0 }, "zoom": 14 },
+        "basemap": {
+          "type": "default",
+          "config": {
+            "showLabels": false
+          }
+        },
+        "layers": [
+          {
+            "type": "data",
+            "name": "Mobile Node",
+            "config": {
+              "location": { "mode": "coords", "srs": "name", "geohash": "", "lookup": "", "wkt": "", "coords": "" },
+              "from": "table",
+              "dataformat": "dataframe",
+              "data": "",
+              "source": "layers",
+              "buffer": 0,
+              "style": {
+                "size": 5,
+                "color": { "fixed": "dark-red" },
+                "opacity": 0.4,
+                "rotation": { "fixed": 0, "field": "", "sizeField": "", "sizeFixed": 1 },
+                "symbol": { "fixed": "img/markers/circle.svg", "field": "", "mode": "fixed" },
+                "textConfig": { "offset": [0, 0], "fontSize": 12, "textAlign": "center", "textBaseline": "middle" }
+              }
+            }
+          },
+          {
+            "type": "data",
+            "name": "iBeacons",
+            "config": {
+              "location": { "mode": "coords", "srs": "name", "geohash": "", "lookup": "", "wkt": "", "coords": "" },
+              "from": "table",
+              "dataformat": "dataframe",
+              "data": "",
+              "source": "layers",
+              "buffer": 0,
+              "style": {
+                "size": 8,
+                "color": { "fixed": "dark-blue" },
+                "opacity": 0.8,
+                "rotation": { "fixed": 0, "field": "", "sizeField": "", "sizeFixed": 1 },
+                "symbol": { "fixed": "img/markers/square.svg", "field": "", "mode": "fixed" },
+                "textConfig": { "offset": [0, 0], "fontSize": 12, "textAlign": "center", "textBaseline": "middle" }
+              }
+            }
+          }
+        ]
+      },
+      "targets": [
+        {
+          "query": "from(bucket:\"prac3\")\n  |> range(start:-5m)\n  |> filter(fn:(r) => r._measurement == \"position\" and r.method == \"kalman\")\n  |> filter(fn:(r) => r._field == \"x\" or r._field == \"y\")\n  |> pivot(rowKey:[\"_time\"], columnKey:[\"_field\"], valueColumn:\"_value\")\n  |> map(fn:(r) => ({ r with latitude: r.y, longitude: r.x }))",
+          "hide": false,
+          "refId": "A"
+        },
+        {
+          "query": "from(bucket:\"prac3\")\n  |> range(start:-5m)\n  |> filter(fn:(r) => r._measurement == \"ibeacon_positions\")\n  |> filter(fn:(r) => r._field == \"x\" or r._field == \"y\")\n  |> pivot(rowKey:[\"_time\"], columnKey:[\"_field\"], valueColumn:\"_value\")\n  |> map(fn:(r) => ({ r with latitude: r.y, longitude: r.x }))",
+          "hide": false,
+          "refId": "B"
+        }
+      ]
+    },
+    {
+      "type": "gauge",
+      "title": "Average Velocity (m/s)",
+      "datasource": "InfluxDB",
+      "gridPos": { "h": 6, "w": 6, "x": 12, "y": 0 },
+      "options": {
+        "orientation": "auto",
+        "reduceOptions": {
+          "values": false,
+          "calcs": ["lastNotNull"],
+          "fields": ""
+        },
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true,
+        "min": 0,
+        "max": 2
+      },
+      "targets": [
+        {
+          "query": "import \"math\"\n\nfrom(bucket:\"prac3\")\n  |> range(start:-30s)\n  |> filter(fn:(r)=> r._measurement==\"position\" and r.method==\"kalman\" and (r._field==\"vx\" or r._field==\"vy\"))\n  |> pivot(rowKey:[\"_time\"], columnKey:[\"_field\"], valueColumn:\"_value\")\n  |> filter(fn:(r)=> exists r.vx and exists r.vy)\n  |> map(fn:(r)=> ({ _time: r._time, _value: math.sqrt(x: float(v: r.vx*r.vx + r.vy*r.vy)) }))",
+          "hide": false,
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Distance Travelled (m)",
+      "datasource": "InfluxDB",
+      "gridPos": { "h": 6, "w": 6, "x": 12, "y": 6 },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "textMode": "auto",
+        "reduceOptions": {
+          "values": false,
+          "calcs": ["lastNotNull"],
+          "fields": ""
+        }
+      },
+      "targets": [
+        {
+          "query": "import \"math\"\n\nfrom(bucket:\"prac3\")\n  |> range(start:-5m)\n  |> filter(fn:(r)=> r._measurement==\"position\" and r.method==\"kalman\" and (r._field==\"x\" or r._field==\"y\"))\n  |> pivot(rowKey:[\"_time\"], columnKey:[\"_field\"], valueColumn:\"_value\")\n  |> filter(fn:(r)=> exists r.x and exists r.y)\n  |> window(every: 1s)\n  |> difference(nonNegative:true, columns:[\"x\",\"y\"])\n  |> filter(fn:(r)=> exists r.x and exists r.y)\n  |> map(fn:(r)=> ({ _time: r._time, _value: math.sqrt(x: float(v: r.x*r.x + r.y*r.y)) }))\n  |> cumulativeSum()",
+          "hide": false,
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "RSSI Values",
+      "datasource": "InfluxDB",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 },
+      "options": {
+        "legend": { "displayMode": "table", "placement": "right", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "none" }
+      },
+      "targets": [
+        {
+          "query": "from(bucket:\"prac3\")\n  |> range(start:-5m)\n  |> filter(fn:(r) => r._measurement == \"position\" and r.method == \"multilat\" and r._field == \"rssi\")\n  |> group(columns: [\"ibeacon\"])",
+          "hide": false,
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Ultrasonic Range",
+      "datasource": "InfluxDB",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 },
+      "options": {
+        "legend": { "displayMode": "table", "placement": "right", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "none" }
+      },
+      "targets": [
+        {
+          "query": "from(bucket:\"prac3\")\n  |> range(start:-5m)\n  |> filter(fn:(r) => r._measurement == \"position\" and r.method == \"ultrasonic\" and r._field == \"us_range\")\n  |> group(columns: [\"node\"])",
+          "hide": false,
+          "refId": "A"
+        }
+      ]
+    }
+  ],
+  "templating": {
+    "list": []
+  },
+  "annotations": {
+    "list": []
+  }
+}
