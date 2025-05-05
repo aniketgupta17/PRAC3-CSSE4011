@@ -90,8 +90,8 @@ Each functionality is handled by a dedicated thread :
 ## Data Flow Diagram
 
 ![Base Node Flowchart](mycode/flowcharts/Basenodeflowchart.png)
+---
 ![Mobile, Ultrasonic & Peripherals](mycode/flowcharts/flowchartcombined.png)
-
 ---
 
 # Base Node Setup: ESP32 DevKitM C3 Setup Guide for Zephyr RTOS on macOS
