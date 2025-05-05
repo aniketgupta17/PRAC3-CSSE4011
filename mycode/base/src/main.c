@@ -5,8 +5,10 @@
 #include <zephyr/sys/util.h>
 #include <string.h>
 #include <math.h>
+#include "ibeacon_node_manager.h"
 
-#define POS_PACKET_TYPE       0x02          /* fused-position advert */
+
+#define POS_PACKET_TYPE       0x02        
 #define COMPANY_ID_LSB 0xFF
 #define COMPANY_ID_MSB 0xFF
 #define NUM_BEACONS 8
@@ -14,7 +16,7 @@
 #define ULTRASONIC_PACKET_TYPE 0x01
 
 // Coordinates of beacons
-static const double mock_coordinates[NUM_BEACONS][2] = {
+static const double grid_a[NUM_BEACONS][2] = {
     {0.0, 0.0}, {1.5, 0.0}, {3.0, 0.0}, {3.0, 2.0},
     {3.0, 4.0}, {1.5, 4.0}, {0.0, 4.0}, {0.0, 2.0}
 };
@@ -30,6 +32,7 @@ static const double mock_coordinates[NUM_BEACONS][2] = {
 //     -67, /* G */
 //     -47  /* H */
 // };
+
 static uint8_t mfg[7];
 
 static const struct bt_data ad[] = {
@@ -155,24 +158,21 @@ static bool multilateration(double *x, double *y) {
             valid_indices[valid_count++] = i;
         }
     }
-
     // Check for more than 3 beacons
     if (valid_count <= 2) {
         printk("Multilateration failed: %d beacons detected, more than 2 required\n", valid_count);
         return false;
     }
-
     // Log beacon data
     char dist_buf[16], x_buf[16], y_buf[16];
     for (int i = 0; i < valid_count; i++) {
         int idx = valid_indices[i];
         format_double(distances[i], dist_buf, sizeof(dist_buf));
-        format_double(mock_coordinates[idx][0], x_buf, sizeof(x_buf));
-        format_double(mock_coordinates[idx][1], y_buf, sizeof(y_buf));
+        format_double(grid_a[idx][0], x_buf, sizeof(x_buf));
+        format_double(grid_a[idx][1], y_buf, sizeof(y_buf));
         printk("Beacon %c: RSSI=%d, Distance=%s m, Coord=(%s, %s)\n",
                'A' + idx, rssi_values[idx], dist_buf, x_buf, y_buf);
     }
-
     // Select reference beacon (strongest RSSI)
     int ref_idx = valid_indices[0];
     int8_t max_rssi = rssi_values[ref_idx];
@@ -183,8 +183,8 @@ static bool multilateration(double *x, double *y) {
             ref_idx = idx;
         }
     }
-    double xr = mock_coordinates[ref_idx][0];
-    double yr = mock_coordinates[ref_idx][1];
+    double xr = grid_a[ref_idx][0];
+    double yr = grid_a[ref_idx][1];
     double dr = 0.0;
     for (int i = 0; i < valid_count; i++) {
         if (valid_indices[i] == ref_idx) {
@@ -200,15 +200,14 @@ static bool multilateration(double *x, double *y) {
     for (int i = 0, j = 0; i < valid_count; i++) {
         if (valid_indices[i] == ref_idx) continue;
         int idx = valid_indices[i];
-        double xi = mock_coordinates[idx][0];
-        double yi = mock_coordinates[idx][1];
+        double xi = grid_a[idx][0];
+        double yi = grid_a[idx][1];
         double di = distances[i];
         A[j][0] = 2.0 * (xi - xr);
         A[j][1] = 2.0 * (yi - yr);
         b[j] = (xi * xi - xr * xr) + (yi * yi - yr * yr) + (dr * dr - di * di);
         j++;
     }
-
     // Compute normal equations
     double ATA[2][2] = {{0}}, ATb[2] = {0};
     for (int i = 0; i < used; i++) {
@@ -219,7 +218,6 @@ static bool multilateration(double *x, double *y) {
         ATb[0] += A[i][0] * b[i];
         ATb[1] += A[i][1] * b[i];
     }
-
     // Add small regularization for numerical stability
     ATA[0][0] += 1e-4;
     ATA[1][1] += 1e-4;
@@ -283,7 +281,7 @@ static void kalman_predict(struct kalman_state *state) {
     for (int i = 0; i < 2; i++) {
         for (int j = 0; j < 2; j++) {
             for (int k = 0; k < 2; k++) {
-                cov_temp[i][j] += temp[i][k] * A[j][k]; // A^T = A
+                cov_temp[i][j] += temp[i][k] * A[j][k];
             }
             cov_temp[i][j] += Q[i][j];
         }
@@ -393,20 +391,31 @@ static void scan_recv(const struct bt_le_scan_recv_info *info, struct net_buf_si
             size_t mlen = field_len - 1;
 
             if (mlen >= 4 && m[0] == COMPANY_ID_LSB && m[1] == COMPANY_ID_MSB) {
-                int8_t rssi = (int8_t)m[2];
-                char id = (char)m[3];
+                // printk("[DEBUG] Matched iBeacon packet header (Company ID)\n");
+                     
 
+                int8_t rssi = (int8_t)m[2];
+                char id = (char)m[8];
+
+                if (is_ibeacon_node(id, NULL)) {
+            
                 if (id >= 'A' && id <= 'H') {
                     int index = id - 'A';
+            
                     if (!(processed_ids & (1 << index))) {
                         update_rssi(index, rssi);
                         processed_ids |= (1 << index);
+            
                         char rssi_buf[16];
                         format_double(smoothed_rssi[index], rssi_buf, sizeof(rssi_buf));
                         printk("Detection: Beacon %c RSSI=%s\n", id, rssi_buf);
+                    } else {
                     }
+                } else {
+                    printk("[WARN] ID %c out of expected range A–H. Ignored.\n", id);
                 }
-            } else if (mlen >= ULTRASONIC_ADV_DATA_LEN && m[0] == 0xAA && m[1] == 0xAA && m[2] == ULTRASONIC_PACKET_TYPE) {
+            }}
+              if (mlen >= ULTRASONIC_ADV_DATA_LEN && m[0] == 0xAA && m[1] == 0xAA && m[2] == ULTRASONIC_PACKET_TYPE) {
                 uint8_t node_id = m[3];
                 uint8_t x_ultra = m[4];
                 uint16_t y_ultra = ((uint16_t)m[6] << 8) | m[5];
@@ -414,10 +423,35 @@ static void scan_recv(const struct bt_le_scan_recv_info *info, struct net_buf_si
 
                 // Enqueue ultrasonic position (convert mm to meters)
                 struct position_data pos = {
-                    .x = x_ultra / 1000.0,
+                    .x = 0,
                     .y = y_ultra / 1000.0,
                     .source = 1 // Ultrasonic
                 };
+
+                if (y_ultra == 4000) {
+                    printk("Ultrasonic Node %d: Invalid reading (y=4000), skipped\n", node_id);
+                    continue;             }
+
+                k_msgq_put(&position_queue, &pos, K_NO_WAIT);
+            }
+             if (mlen >= ULTRASONIC_ADV_DATA_LEN && m[0] == 0xBB && m[1] == 0xBB && m[2] == ULTRASONIC_PACKET_TYPE )  {
+                uint8_t node_id = m[3];
+                uint8_t x_ultra = m[4];
+                uint16_t y_ultra = ((uint16_t)m[6] << 8) | m[5];
+                printk("Ultrasonic Node two %d: x=%d, y=%d mm\n", node_id, x_ultra, y_ultra);
+
+                // Enqueue ultrasonic position (convert mm to meters)
+                struct position_data pos = {
+                    .x = 0,
+                    .y = y_ultra / 1000.0,
+                    .source = 1 // Ultrasonic
+                };
+
+                if (y_ultra == 4000) {
+                    printk("Ultrasonic Node %d: Invalid reading (y=4000), skipped\n", node_id);
+                    continue; // Exit current handler or block
+                }
+
                 k_msgq_put(&position_queue, &pos, K_NO_WAIT);
             }
         }
@@ -445,7 +479,7 @@ static void rssi_thread(void *p1, void *p2, void *p3) {
     }
 
     while (1) {
-        k_sleep(K_SECONDS(3)); // Extended to collect more beacons
+        k_sleep(K_SECONDS(3)); 
         processed_ids = 0;
 
         double x_rssi, y_rssi;
@@ -563,6 +597,7 @@ void main(void) {
     }
 
     start_advertising();
+    ibeacon_node_manager_init();
 
 
     bt_le_scan_cb_register(&unified_scan_callbacks);
