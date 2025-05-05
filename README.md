@@ -7,20 +7,29 @@ This repository contains the implementation for **Practical 3** of **CSSE4011 - 
 
 ### Platform
 - **ESP32-C3-DevKitM**
+- **Disco_l475_iot1a**
+- **M5stack core2**
+- **nrf52480_dk**
+- **Thingy52**
+- **Grafana dashboard with Influx db**
 - **Zephyr OS**
 
 ---
 
 ### BLE Configuration and Communication
-- Establishes a Bluetooth connection with the mobile node
+- Mobile node scans for the advertisements and broadcast the rssi packet only the econfigured ones with manufacture data header
+- Ultrasonic node advertises the distance packet
+- Base node scans for the advertisement with the specific header
 - Receives:
   - RSSI proximity data from iBeacon nodes
   - Ultrasonic ranging data
+- Transmit Fused data after applying kalman filter to M5 stack(Viewer)
+- Transmit Fused data after applying kalman filter to dashboard(grafana) 
 - Uses **Zephyr’s Bluetooth stack** for scanning and advertisements
 
 ---
 
-### Shell Commands for iBeacon Node Management
+### Interaction with the Shell 
 
 Shell commands allow dynamic control of the iBeacon node list:
 
@@ -61,7 +70,7 @@ Each iBeacon node includes:
 - Fixed (X, Y) coordinates
 - Left & Right neighbor BLE names
 
-Stored in `sys_slist_t` with semaphore protection.
+Stored in `sys_slist_t` 
 
 ---
 
@@ -75,7 +84,7 @@ Fuses sensor data using a **Kalman Filter**:
 
 - **Assumptions:**
   - Constant velocity motion model
-  - Known initial position
+  - Initial Position at (0,0)
 
 - **Output:**
   - Refined, real-time position estimate
@@ -83,31 +92,29 @@ Fuses sensor data using a **Kalman Filter**:
 ---
 
 ### Serialisation
-- Serializes:
+- Serialises:
   - Position estimates
   - Timestamps
   - Range and motion data
 - Format: **JSON**
-- Transmitted via **UART** to PC for visualization
+- Transmitted via **UART** to PC for visualisation
 
 ---
 
 ## Multi-threaded Design
 
-Each functionality is handled by a dedicated thread:
+Each functionality is handled by a dedicated thread :
 
 | Thread | Responsibility |
 |--------|----------------|
-| Communication Thread | Receives Bluetooth data |
-| Filtering Thread | Filters and queues data |
-| Localization Thread | Computes RSSI-based estimates |
+| Data Thread | Filters, Receive and queues data |
 | Data Fusion Thread | Runs Kalman filter |
 | Serialization Thread | Prepares JSON for transmission |
 | Shell Command Thread | Handles shell interactions |
 
 Data exchange uses:
 - `k_msgq` (message queues)
-- `k_sem` (semaphores)
+- `k_mutex` (Mutex)
 
 ---
 
@@ -116,7 +123,7 @@ Data exchange uses:
 ![Base Node Flowchart](mycode/flowcharts/Basenodeflowchart.png)
 ![Mobile, Ultrasonic & Peripherals](mycode/flowcharts/flowchartcombined.png)
 
-# ESP32 DevKitM C3 Setup Guide for Zephyr RTOS on macOS
+# Base Node Setup: ESP32 DevKitM C3 Setup Guide for Zephyr RTOS on macOS
 
 This guide provides steps to set up the Zephyr RTOS development environment for the ESP32 DevKitM C3 board on macOS, using the RISC-V toolchain.
 
