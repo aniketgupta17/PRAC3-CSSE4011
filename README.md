@@ -92,6 +92,8 @@ Each functionality is handled by a dedicated thread :
 ![Base Node Flowchart](mycode/flowcharts/Basenodeflowchart.png)
 ![Mobile, Ultrasonic & Peripherals](mycode/flowcharts/flowchartcombined.png)
 
+---
+
 # Base Node Setup: ESP32 DevKitM C3 Setup Guide for Zephyr RTOS on macOS
 
 This guide provides steps to set up the Zephyr RTOS development environment for the ESP32 DevKitM C3 board on macOS, using the RISC-V toolchain.
