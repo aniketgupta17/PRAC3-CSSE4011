@@ -47,61 +47,10 @@ Shell commands allow dynamic control of the iBeacon node list:
 
 > Node data is stored in a Zephyr `sys_slist_t` and managed with semaphores for thread safety.
 
----
-
-### Message Filtration
-- Filters Bluetooth messages
-- Processes only messages from registered iBeacon nodes
-- Discards messages from unknown sources
 
 ---
 
-### Ultrasonic Ranging Data
-- Receives ranging data relayed from ultrasonic nodes via the mobile node
-- Provides high-accuracy location data (LOS)
-
----
-
-### Information Storage
-Each iBeacon node includes:
-- BLE Name
-- MAC Address
-- Major & Minor numbers
-- Fixed (X, Y) coordinates
-- Left & Right neighbor BLE names
-
-Stored in `sys_slist_t` 
-
----
-
-### Data Fusion
-
-Fuses sensor data using a **Kalman Filter**:
-
-- **Inputs:**
-  - RSSI-based location (via multilateration)
-  - Ultrasonic ranging data
-
-- **Assumptions:**
-  - Constant velocity motion model
-  - Initial Position at (0,0)
-
-- **Output:**
-  - Refined, real-time position estimate
-
----
-
-### Serialisation
-- Serialises:
-  - Position estimates
-  - Timestamps
-  - Range and motion data
-- Format: **JSON**
-- Transmitted via **UART** to PC for visualisation
-
----
-
-## Multi-threaded Design
+## Multi-threaded Design: Base Node
 
 Each functionality is handled by a dedicated thread :
 
@@ -115,6 +64,26 @@ Each functionality is handled by a dedicated thread :
 Data exchange uses:
 - `k_msgq` (message queues)
 - `k_mutex` (Mutex)
+
+---
+
+## Zephyr Design: Mobile Node 
+
+Each functionality is handled by a dedicated thread :
+
+| Thread | Responsibility |
+|--------|----------------|
+| Data Thread | Filters, Receive and broadcast data |
+
+---
+
+## Zephyr Design: Ultrasonic Node
+
+Each functionality is handled by a dedicated thread :
+
+| Thread | Responsibility |
+|--------|----------------|
+| Data Thread | Filters, Receive and broadcast data |
 
 ---
 
