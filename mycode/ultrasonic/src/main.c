@@ -36,8 +36,8 @@
   #define ULTRASONIC_NODE_ID 1  /* ID for STM32L475 Discovery node */
   #define ULTRASONIC_X_POS   0  /* Fixed X position on grid (leftmost position) */
 #elif defined(CONFIG_BOARD_NRF52840DK_NRF52840)
-  #define ULTRASONIC_NODE_ID 1.5  /* ID for nRF52840 DK node */
-  #define ULTRASONIC_X_POS   2  /* Fixed X position on grid (position 1) */
+  #define ULTRASONIC_NODE_ID 2  /* ID for nRF52840 DK node */
+  #define ULTRASONIC_X_POS   0  /* Fixed X position on grid (position 1) */
 #else
   #define ULTRASONIC_NODE_ID 3  /* Default ID for other boards */
   #define ULTRASONIC_X_POS   2  /* Default X position */
