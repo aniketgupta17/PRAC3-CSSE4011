@@ -80,9 +80,7 @@ static void ble_broadcast_thread(void *p1, void *p2, void *p3)
 
         /* Build manufacturer-specific adv packet */
         uint8_t adv_data[ULTRASONIC_ADV_DATA_LEN] = {
-    0xAA, 0xAA,                        // Sync bytes (fixed)
-    ULTRASONIC_PACKET_TYPE,           // 0x01 – ultrasonic type
-    g_node_id,                        // Your node ID
+    0xBB, 0xBB,                // Your node ID
     g_x_position,                     // X coordinate
     (uint8_t)(current_distance & 0xFF),           // LSB of distance
     (uint8_t)((current_distance >> 8) & 0xFF)     // MSB of distance
