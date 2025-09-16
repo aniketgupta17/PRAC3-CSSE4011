@@ -1,4 +1,4 @@
-# PRAC3-CSSE4011: Localisation with Data Fusion
+# Localisation with Data Fusion
 
 This repository contains the implementation for **Practical 3** of **CSSE4011 - Advanced Embedded Systems**, focusing on localisation with data fusion using Bluetooth iBeacons and ultrasonic ranging. The system tracks a mobile node on a **4m x 3m** grid using a base node, mobile node, ultrasonic nodes, and iBeacon nodes, with data visualized on a Viewer and web dashboard.
 
